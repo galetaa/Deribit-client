@@ -3,7 +3,11 @@ from database import database
 from sqlalchemy import select
 from pydantic import BaseModel
 from database import prices
+from prometheus_client import start_http_server, Counter, generate_latest
+from starlette.responses import Response
+
 app = FastAPI()
+REQUEST_COUNT = Counter('request_count', 'API Request Count', ['method', 'endpoint'])
 
 
 class PriceData(BaseModel):
@@ -47,3 +51,15 @@ async def get_prices_with_filter(ticker: str, start_date: int, end_date: int):
     if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No data found for specified date range")
     return rows
+
+
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    response = await call_next(request)
+    REQUEST_COUNT.labels(method=request.method, endpoint=request.url.path).inc()
+    return response
+
+
+@app.get("/metrics")
+async def get_metrics():
+    return Response(generate_latest(), media_type="text/plain")
