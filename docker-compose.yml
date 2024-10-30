@@ -1,0 +1,80 @@
+services:
+  db:
+    image: postgres:14
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - monitoring_network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring_network
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=secret
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring_network
+
+  client:
+    build:
+      context: .
+    container_name: test_client
+    depends_on:
+      - db
+    command: python client.py
+    networks:
+      - monitoring_network
+
+  fastapi:
+    build:
+      context: .
+    container_name: fastapi_app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - db
+      - client
+    ports:
+      - "8000:8000"
+    networks:
+      - monitoring_network
+    environment:
+      - DATABASE_URL=postgresql://myuser:mypassword@db:5432/mydatabase
+
+  tests:
+    build: .
+    command: pytest
+    environment:
+      - DATABASE_URL=postgresql://myuser:mypassword@db:5432/mydatabase
+    depends_on:
+      - db
+      - fastapi
+      - client
+    networks:
+      - monitoring_network
+
+volumes:
+  postgres_data:
+
+networks:
+  monitoring_network:
+    driver: bridge

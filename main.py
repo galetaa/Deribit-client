@@ -3,7 +3,7 @@ from database import database
 from sqlalchemy import select
 from pydantic import BaseModel
 from database import prices
-from prometheus_client import start_http_server, Counter, generate_latest
+from prometheus_client import Counter, generate_latest
 from starlette.responses import Response
 
 app = FastAPI()
@@ -14,6 +14,16 @@ class PriceData(BaseModel):
     ticker: str
     price: float
     timestamp: int
+
+
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
 
 
 @app.get("/prices", response_model=list[PriceData])
