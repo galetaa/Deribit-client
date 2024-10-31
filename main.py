@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException, status
-from database import database
-from sqlalchemy import select
-from pydantic import BaseModel
-from database import prices
 from prometheus_client import Counter, generate_latest
+from pydantic import BaseModel
+from sqlalchemy import select
 from starlette.responses import Response
+
+from database import database
+from database import prices
 
 app = FastAPI()
 REQUEST_COUNT = Counter('request_count', 'API Request Count', ['method', 'endpoint'])
@@ -30,6 +31,7 @@ async def shutdown():
 async def get_all_prices(ticker: str):
     query = select(prices).where(prices.c.ticker == ticker)
     rows = await database.fetch_all(query)
+
     if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data not found")
     return rows
@@ -43,7 +45,9 @@ async def get_latest_price(ticker: str):
         .order_by(prices.c.timestamp.desc())
         .limit(1)
     )
+
     row = await database.fetch_one(query)
+
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data not found")
     return row
@@ -57,7 +61,9 @@ async def get_prices_with_filter(ticker: str, start_date: int, end_date: int):
         .where(prices.c.timestamp >= start_date)
         .where(prices.c.timestamp <= end_date)
     )
+
     rows = await database.fetch_all(query)
+
     if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No data found for specified date range")
     return rows
@@ -67,6 +73,7 @@ async def get_prices_with_filter(ticker: str, start_date: int, end_date: int):
 async def metrics_middleware(request, call_next):
     response = await call_next(request)
     REQUEST_COUNT.labels(method=request.method, endpoint=request.url.path).inc()
+
     return response
 
 

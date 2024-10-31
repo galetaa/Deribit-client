@@ -1,9 +1,11 @@
-import aiohttp
 import asyncio
+import logging
 from datetime import datetime
 from typing import Dict
+
+import aiohttp
+
 from database import database, prices
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,6 +23,7 @@ class DeribitClient:
                 async with session.get(f"{API_URL}?index_name={ticker}") as response:
                     data = await response.json()
                     price = data.get('result', {}).get('index_price')
+
                     if price is not None:
                         logger.info(f"Price recieved: {ticker}: {price}")
                         return {
@@ -30,6 +33,7 @@ class DeribitClient:
                         }
                     else:
                         logger.error(f"Error getting price for: {ticker}")
+
             except Exception as e:
                 logger.error(f"Error getting data for: {ticker}: {e}")
         return {}
@@ -41,21 +45,25 @@ class DeribitClient:
                 price=data['price'],
                 timestamp=data['timestamp']
             )
+
             await database.execute(query)
             logger.info(f"Saved to db: {data}")
 
     async def fetch_and_save(self):
         tasks = [self.fetch_price(ticker) for ticker in self.tickers]
         results = await asyncio.gather(*tasks)
+
         for result in results:
             await self.save_price(result)
 
     async def start(self):
         await database.connect()
+
         try:
             while True:
                 await self.fetch_and_save()
                 await asyncio.sleep(60)
+
         finally:
             await database.disconnect()
 
